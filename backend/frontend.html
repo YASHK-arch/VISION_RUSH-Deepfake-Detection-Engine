@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deepfake Video Detector</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .lucide {
+            display: inline-block;
+            vertical-align: middle;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            fill: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-6">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="flex items-center justify-center mb-4">
+                <svg class="lucide w-12 h-12 text-indigo-600 mr-3" viewBox="0 0 24 24">
+                    <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"></path>
+                    <rect x="2" y="6" width="14" height="12" rx="2"></rect>
+                </svg>
+                <h1 class="text-4xl font-bold text-gray-800">Deepfake Video Detector</h1>
+            </div>
+            <p class="text-gray-600">AI-powered detection using ResNext CNN + LSTM</p>
+            <div class="mt-2 text-sm text-gray-500">
+                <span class="inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800">
+                    🟢 Backend: Django + PyTorch
+                </span>
+            </div>
+        </div>
+
+        <!-- Info Card -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div class="flex items-start">
+                <svg class="lucide w-5 h-5 text-blue-600 mr-3 mt-0.5 flex-shrink-0" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 16v-4"></path>
+                    <path d="M12 8h.01"></path>
+                </svg>
+                <div class="text-sm text-blue-800">
+                    <p class="font-semibold mb-1">How it works:</p>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li>Upload a video file (max 100MB)</li>
+                        <li>System extracts and analyzes facial features from frames</li>
+                        <li>ResNext CNN extracts frame-level features (2048-dimensional vectors)</li>
+                        <li>LSTM processes temporal sequences to detect manipulation artifacts</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Card -->
+        <div class="bg-white rounded-xl shadow-lg p-8 mb-6">
+            <!-- Upload Area -->
+            <div class="mb-6">
+                <div id="uploadArea" class="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center cursor-pointer hover:border-indigo-500 transition-colors">
+                    <svg class="lucide w-16 h-16 text-gray-400 mx-auto mb-4" viewBox="0 0 24 24">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <p class="text-gray-600 mb-2" id="fileName">Click to select a video file</p>
+                    <p class="text-sm text-gray-400">
+                        Supported formats: MP4, AVI, MOV, MKV (Max: 100MB)
+                    </p>
+                    <input type="file" id="fileInput" accept="video/*" class="hidden">
+                </div>
+            </div>
+
+            <!-- Video Preview -->
+            <div id="previewContainer" class="mb-6 hidden">
+                <h3 class="text-lg font-semibold mb-3 text-gray-800">Preview:</h3>
+                <video id="videoPreview" controls class="w-full max-h-96 rounded-lg bg-black"></video>
+            </div>
+
+            <!-- Processing Status -->
+            <div id="processingStatus" class="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 hidden">
+                <div class="flex items-center text-blue-800">
+                    <svg class="lucide w-5 h-5 mr-2 animate-spin flex-shrink-0" viewBox="0 0 24 24">
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                    </svg>
+                    <div>
+                        <p class="font-semibold">Processing video...</p>
+                        <p class="text-sm mt-1">Extracting faces → Feature extraction → Temporal analysis</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error Message -->
+            <div id="errorMessage" class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 hidden">
+                <div class="flex items-center text-red-800">
+                    <svg class="lucide w-5 h-5 mr-2 flex-shrink-0" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span id="errorText"></span>
+                </div>
+            </div>
+
+            <!-- Result -->
+            <div id="resultContainer" class="mb-6 rounded-lg p-6 hidden">
+                <div class="flex items-center mb-4">
+                    <svg id="resultIcon" class="lucide w-8 h-8 mr-3" viewBox="0 0 24 24"></svg>
+                    <div>
+                        <h3 id="resultTitle" class="text-2xl font-bold text-gray-800"></h3>
+                        <p id="resultConfidence" class="text-lg"></p>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-200">
+                    <div>
+                        <p class="text-sm text-gray-600">Frames Analyzed</p>
+                        <p id="framesAnalyzed" class="text-lg font-semibold text-gray-800">-</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Model</p>
+                        <p id="modelUsed" class="text-lg font-semibold text-gray-800">-</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Device</p>
+                        <p id="deviceUsed" class="text-lg font-semibold text-gray-800">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-4">
+                <button id="analyzeBtn" disabled class="flex-1 bg-indigo-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center">
+                    <svg class="lucide w-5 h-5 mr-2" viewBox="0 0 24 24">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    Analyze Video
+                </button>
+                
+                <button id="resetBtn" class="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    Reset
+                </button>
+            </div>
+        </div>
+
+        <!-- Technical Details -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Model Architecture</h3>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div>
+                    <h4 class="font-semibold text-gray-700 mb-2">Feature Extraction</h4>
+                    <ul class="text-sm text-gray-600 space-y-1">
+                        <li>• ResNext50_32x4d CNN (50 layers)</li>
+                        <li>• 2048-dimensional feature vectors</li>
+                        <li>• Frame-level artifact detection</li>
+                        <li>• Pre-trained on ImageNet</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-gray-700 mb-2">Temporal Analysis</h4>
+                    <ul class="text-sm text-gray-600 space-y-1">
+                        <li>• LSTM-based RNN (2048 hidden units)</li>
+                        <li>• Sequential frame processing</li>
+                        <li>• 40-150 frames @ 30fps analysis</li>
+                        <li>• Dropout: 0.4 for regularization</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="mt-6 pt-6 border-t border-gray-200">
+                <h4 class="font-semibold text-gray-700 mb-2">Detection Parameters</h4>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                    <div>✓ Eye blinking</div>
+                    <div>✓ Face warping</div>
+                    <div>✓ Skin tone consistency</div>
+                    <div>✓ Temporal artifacts</div>
+                    <div>✓ Lighting inconsistency</div>
+                    <div>✓ Facial expressions</div>
+                    <div>✓ Edge artifacts</div>
+                    <div>✓ Pose consistency</div>
+                </div>
+            </div>
+
+            <div class="mt-6 pt-6 border-t border-gray-200">
+                <h4 class="font-semibold text-gray-700 mb-2">Training Datasets</h4>
+                <div class="flex flex-wrap gap-2">
+                    <span class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm">
+                        FaceForensics++ (2000 videos)
+                    </span>
+                    <span class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm">
+                        DFDC (1500 videos)
+                    </span>
+                    <span class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm">
+                        Celeb-DF (500 videos)
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-8 text-sm text-gray-500">
+            <p>Based on ResNext CNN + LSTM architecture with PyTorch backend</p>
+            <p class="mt-1">Model accuracy: 89.34% on mixed dataset (6000 videos)</p>
+        </div>
+    </div>
+
+    <script>
+        // State management
+        let selectedFile = null;
+        let videoId = null;
+        let processing = false;
+
+        // Configure your Django backend URL
+        const API_BASE_URL = 'http://localhost:8000/api';
+
+        // DOM elements
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const fileName = document.getElementById('fileName');
+        const previewContainer = document.getElementById('previewContainer');
+        const videoPreview = document.getElementById('videoPreview');
+        const processingStatus = document.getElementById('processingStatus');
+        const errorMessage = document.getElementById('errorMessage');
+        const errorText = document.getElementById('errorText');
+        const resultContainer = document.getElementById('resultContainer');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const resetBtn = document.getElementById('resetBtn');
+
+        // Event listeners
+        uploadArea.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFileSelect);
+        analyzeBtn.addEventListener('click', handleUpload);
+        resetBtn.addEventListener('click', handleReset);
+
+        // File selection handler
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            hideError();
+            hideResult();
+            videoId = null;
+
+            if (!file) return;
+
+            // Validate file type
+            if (!file.type.startsWith('video/')) {
+                showError('Only video files are allowed');
+                return;
+            }
+
+            // Validate file size (100MB limit)
+            const maxSize = 100 * 1024 * 1024;
+            if (file.size > maxSize) {
+                showError('Max file size is 100MB');
+                return;
+            }
+
+            selectedFile = file;
+            fileName.textContent = file.name;
+            
+            // Show preview
+            const videoURL = URL.createObjectURL(file);
+            videoPreview.src = videoURL;
+            previewContainer.classList.remove('hidden');
+            
+            // Enable analyze button
+            analyzeBtn.disabled = false;
+        }
+
+        // Upload video to backend
+        async function uploadVideo(file) {
+            const formData = new FormData();
+            formData.append('video', file);
+
+            const response = await fetch(`${API_BASE_URL}/upload/`, {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Upload failed');
+            }
+
+            return await response.json();
+        }
+
+        // Predict video
+        async function predictVideo(videoId) {
+            const response = await fetch(`${API_BASE_URL}/predict/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ video_id: videoId }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Prediction failed');
+            }
+
+            return await response.json();
+        }
+
+        // Handle upload and analysis
+        async function handleUpload() {
+            if (!selectedFile) {
+                showError('Please select a video file');
+                return;
+            }
+
+            setProcessing(true);
+            hideError();
+            hideResult();
+
+            try {
+                // Step 1: Upload video
+                const uploadResponse = await uploadVideo(selectedFile);
+                const uploadedVideoId = uploadResponse.video_id;
+                videoId = uploadedVideoId;
+
+                // Step 2: Process and predict
+                const predictionResponse = await predictVideo(uploadedVideoId);
+
+                // Step 3: Display results
+                displayResult({
+                    prediction: predictionResponse.prediction,
+                    confidence: predictionResponse.confidence,
+                    details: {
+                        framesAnalyzed: predictionResponse.details.framesAnalyzed,
+                        modelUsed: predictionResponse.details.modelUsed,
+                        device: predictionResponse.details.device
+                    }
+                });
+
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                setProcessing(false);
+            }
+        }
+
+        // Reset form
+        function handleReset() {
+            selectedFile = null;
+            videoId = null;
+            fileInput.value = '';
+            fileName.textContent = 'Click to select a video file';
+            videoPreview.src = '';
+            previewContainer.classList.add('hidden');
+            analyzeBtn.disabled = true;
+            hideError();
+            hideResult();
+        }
+
+        // UI helper functions
+        function setProcessing(isProcessing) {
+            processing = isProcessing;
+            analyzeBtn.disabled = isProcessing;
+            resetBtn.disabled = isProcessing;
+            
+            if (isProcessing) {
+                processingStatus.classList.remove('hidden');
+                analyzeBtn.innerHTML = `
+                    <svg class="lucide w-5 h-5 mr-2 animate-spin" viewBox="0 0 24 24">
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                    </svg>
+                    Processing...
+                `;
+            } else {
+                processingStatus.classList.add('hidden');
+                analyzeBtn.innerHTML = `
+                    <svg class="lucide w-5 h-5 mr-2" viewBox="0 0 24 24">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    Analyze Video
+                `;
+            }
+        }
+
+        function showError(message) {
+            errorText.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorMessage.classList.add('hidden');
+        }
+
+        function hideResult() {
+            resultContainer.classList.add('hidden');
+        }
+
+        function displayResult(result) {
+            const isFake = result.prediction === 'FAKE';
+            
+            // Update container classes
+            resultContainer.className = `mb-6 rounded-lg p-6 ${
+                isFake ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'
+            }`;
+            
+            // Update icon
+            const resultIcon = document.getElementById('resultIcon');
+            resultIcon.className = `lucide w-8 h-8 mr-3 ${isFake ? 'text-red-600' : 'text-green-600'}`;
+            resultIcon.innerHTML = isFake 
+                ? '<circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line>'
+                : '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>';
+            
+            // Update title
+            const resultTitle = document.getElementById('resultTitle');
+            resultTitle.textContent = isFake ? 'Deepfake Detected' : 'Authentic Video';
+            
+            // Update confidence
+            const resultConfidence = document.getElementById('resultConfidence');
+            resultConfidence.className = `text-lg ${isFake ? 'text-red-700' : 'text-green-700'}`;
+            resultConfidence.textContent = `Confidence: ${result.confidence}%`;
+            
+            // Update details
+            document.getElementById('framesAnalyzed').textContent = result.details.framesAnalyzed;
+            document.getElementById('modelUsed').textContent = result.details.modelUsed;
+            document.getElementById('deviceUsed').textContent = result.details.device.toUpperCase();
+            
+            // Show result
+            resultContainer.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
