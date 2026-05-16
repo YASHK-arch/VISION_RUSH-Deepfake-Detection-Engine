@@ -1,4 +1,4 @@
-# hackartghjhjjhygj
+
 # 🎭 Deepfake Video Detection MVP (Self-Trained ViT)
 
 This repository contains a **self-trained deepfake video detection system** built using a **Vision Transformer (ViT-B/14 with DINOv2 backbone)**.  
